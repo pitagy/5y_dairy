@@ -1,0 +1,11 @@
+﻿{
+  "name": "5y-diary",
+  "version": "1.0.0",
+  "description": "5-Year Diary",
+  "scripts": {
+    "start": "http-server . -p 5500 -c-1"
+  },
+  "dependencies": {
+    "http-server": "^14.1.1"
+  }
+}
