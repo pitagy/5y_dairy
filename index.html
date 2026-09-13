@@ -49,13 +49,20 @@
       <!-- Navigation -->
       <nav class="nav-bar">
         <div class="year-selector">
-          <button class="nav-btn" id="prevYear" aria-label="이전 년도">
+          <button class="nav-btn" id="prevYear" aria-label="이전 년도" title="이전 년도">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <span class="current-year" id="currentYear">2026</span>
-          <button class="nav-btn" id="nextYear" aria-label="다음 년도">
+          <div class="year-dropdown-wrap">
+            <button class="current-year-btn" id="yearSelectBtn" title="연도 직접 선택">
+              <span id="currentYear">2026</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="year-dropdown-menu hidden" id="yearDropdownMenu"></div>
+          </div>
+          <button class="nav-btn" id="nextYear" aria-label="다음 년도" title="다음 년도">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 4L14 10L8 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
+          <button class="today-jump-btn" id="calTodayBtn" title="오늘 날짜로 이동">오늘</button>
         </div>
         <div class="month-tabs" id="monthTabs"></div>
       </nav>
@@ -67,17 +74,50 @@
       </main>
     </div>
 
-    <!-- ========== 5-Year View ========== -->
+    <!-- ========== 5-Year View (Multi-Year View) ========== -->
     <div id="fiveYearView" class="five-year-view hidden">
       <nav class="nav-bar">
         <div class="fiveyr-date-nav">
-          <button class="nav-btn" id="fiveYrPrevDay" aria-label="이전 날">
+          <button class="nav-btn" id="fiveYrPrevDay" aria-label="이전 날" title="어제">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <span class="fiveyr-date-title" id="fiveYrDateTitle">3월 14일 일기</span>
-          <button class="nav-btn" id="fiveYrNextDay" aria-label="다음 날">
+          
+          <div class="date-picker-wrap">
+            <button class="fiveyr-date-title-btn" id="fiveYrDatePickerBtn" title="날짜 변경">
+              <span class="fiveyr-date-title" id="fiveYrDateTitle">3월 14일 일기</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <!-- Date Jump Popup -->
+            <div class="date-picker-popup hidden" id="datePickerPopup">
+              <div class="date-picker-header">날짜 선택</div>
+              <div class="date-picker-controls">
+                <select id="datePickerMonth" class="form-select"></select>
+                <select id="datePickerDay" class="form-select"></select>
+                <button id="datePickerApply" class="date-picker-apply-btn">이동</button>
+              </div>
+            </div>
+          </div>
+
+          <button class="nav-btn" id="fiveYrNextDay" aria-label="다음 날" title="내일">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 4L14 10L8 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
+          <button class="today-jump-btn" id="fiveYrTodayBtn" title="오늘 날짜로 이동">오늘</button>
+        </div>
+
+        <!-- Year Range Filter / Selector -->
+        <div class="fiveyr-controls">
+          <div class="preset-chips" id="presetChips">
+            <button class="preset-chip" data-preset="3">최근 3년</button>
+            <button class="preset-chip active" data-preset="5">최근 5년 (기본)</button>
+            <button class="preset-chip" data-preset="10">최근 10년</button>
+            <button class="preset-chip" data-preset="all">전체 기록</button>
+          </div>
+          <div class="custom-year-range">
+            <span class="range-label">연도 선택:</span>
+            <select id="startYearSelect" class="form-select year-select"></select>
+            <span class="range-sep">~</span>
+            <select id="endYearSelect" class="form-select year-select"></select>
+          </div>
         </div>
       </nav>
       <main class="diary-main">

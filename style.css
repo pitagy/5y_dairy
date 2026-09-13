@@ -192,17 +192,114 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  gap: 12px;
   margin-bottom: 12px;
+  position: relative;
 }
 
-.current-year {
+.year-dropdown-wrap {
+  position: relative;
+}
+
+.current-year-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
   font-family: var(--font-display);
   font-size: 1.6rem;
   font-weight: 700;
-  min-width: 80px;
-  text-align: center;
   color: var(--accent);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.current-year-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--border-accent);
+}
+
+.year-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 200;
+  min-width: 140px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.year-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: var(--transition);
+}
+
+.year-dropdown-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.year-dropdown-item.active {
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+.year-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background: var(--bg-secondary);
+  color: var(--accent);
+  border-radius: 10px;
+  border: 1px solid var(--border-accent);
+}
+
+.year-dropdown-item.active .year-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+  border-color: transparent;
+}
+
+.today-jump-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-accent);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: var(--transition);
+  margin-left: 6px;
+}
+
+.today-jump-btn:hover {
+  background: var(--accent);
+  color: white;
+  box-shadow: var(--shadow-sm);
 }
 
 .nav-btn {
@@ -457,14 +554,36 @@ body::before {
 }
 
 /* ======================================= */
-/* ===== 5-Year View ===== */
+/* ===== 5-Year View (Multi-Year View) ===== */
 /* ======================================= */
 .five-year-view .fiveyr-date-nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  padding: 4px 0;
+  gap: 14px;
+  padding: 4px 0 10px;
+  position: relative;
+}
+
+.date-picker-wrap {
+  position: relative;
+}
+
+.fiveyr-date-title-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.fiveyr-date-title-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--border-accent);
 }
 
 .fiveyr-date-title {
@@ -472,10 +591,146 @@ body::before {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--accent);
-  min-width: 180px;
   text-align: center;
 }
 
+/* Date Picker Popup */
+.date-picker-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 14px;
+  z-index: 200;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.date-picker-header {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.date-picker-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-picker-apply-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+}
+
+.date-picker-apply-btn:hover {
+  background: var(--accent-hover);
+}
+
+/* Multi-Year Controls Bar */
+.fiveyr-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-top: 6px;
+}
+
+.preset-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preset-chip {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.preset-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.preset-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.custom-year-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.range-label {
+  font-weight: 500;
+}
+
+.range-sep {
+  color: var(--text-muted);
+  font-weight: bold;
+}
+
+.form-select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.form-select:hover, .form-select:focus {
+  border-color: var(--accent);
+}
+
+.year-select {
+  min-width: 84px;
+}
+
+/* 5-Year Entries Cards */
 .fiveyr-entries {
   display: flex;
   flex-direction: column;
@@ -536,25 +791,59 @@ body::before {
 }
 
 .fiveyr-card.is-future {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 
 .fiveyr-card.is-future:hover {
-  opacity: 0.8;
+  opacity: 0.85;
+}
+
+.fiveyr-card-disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.fiveyr-card-disabled:hover {
+  transform: none;
+  background: var(--bg-card);
+}
+
+.fiveyr-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
 .fiveyr-year-label {
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--accent);
-  margin-bottom: 4px;
 }
 
 .fiveyr-dow {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
-  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.today-badge {
+  background: var(--accent);
+  color: white;
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.no-entries-notice {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 20px;
+  font-size: 0.95rem;
 }
 
 .fiveyr-preview {
@@ -786,6 +1075,17 @@ body::before {
   .modal-body { padding: 12px 18px; }
   .modal-textarea { min-height: 250px; }
   .month-tabs { justify-content: flex-start; }
+  .fiveyr-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .preset-chips {
+    justify-content: center;
+  }
+  .custom-year-range {
+    justify-content: center;
+  }
 }
 
 @media (max-width: 600px) {
@@ -797,6 +1097,9 @@ body::before {
   .weekday-cell { font-size: 0.65rem; }
   .modal-btn span { display: none; }
   .modal-btn { padding: 7px 8px; }
+  .current-year-btn { font-size: 1.3rem; padding: 2px 6px; }
+  .fiveyr-date-title { font-size: 1.2rem; }
+  .preset-chip { font-size: 0.75rem; padding: 4px 10px; }
 }
 
 /* ===== Animations ===== */

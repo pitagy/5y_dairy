@@ -2,31 +2,40 @@
 (function () {
   'use strict';
 
-  // --- Config ---
-  const START_YEAR = 2026;
-  const END_YEAR = 2030;
+  // --- Config & Constants ---
   const STORAGE_KEY = '5y_diary_entries';
   const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
   const MONTHS = Array.from({ length: 12 }, (_, i) => `${i + 1}월`);
 
   // --- State ---
-  let currentYear = START_YEAR;
-  let currentMonth = 0; // 0-indexed
+  const today = getToday();
+  let currentYear = today.year;
+  let currentMonth = today.month; // 0-indexed
   let entries = {};
   let currentEditKey = null;
   let viewMode = 'calendar'; // 'calendar' | 'fiveYear'
-  let fiveYrMonth = 0; // 0-indexed
-  let fiveYrDay = 1;
 
-  // --- DOM ---
+  // Multi-Year View State (기본: 현재 기준 5년 전 ~ 올해, 예: 2022~2026)
+  let fiveYrMonth = today.month; // 0-indexed
+  let fiveYrDay = today.day;
+  let fiveYrStartYear = today.year - 4;
+  let fiveYrEndYear = today.year;
+  let currentPreset = '5'; // '3' | '5' | '10' | 'all' | 'custom'
+
+  // --- DOM Elements ---
   const $ = (id) => document.getElementById(id);
   const dateRangeEl = $('dateRange');
   const currentYearEl = $('currentYear');
   const prevYearBtn = $('prevYear');
   const nextYearBtn = $('nextYear');
+  const yearSelectBtn = $('yearSelectBtn');
+  const yearDropdownMenu = $('yearDropdownMenu');
+  const calTodayBtn = $('calTodayBtn');
   const monthTabsEl = $('monthTabs');
   const diaryGridEl = $('diaryGrid');
   const weekdayHeaderEl = $('weekdayHeader');
+
+  // Modal
   const modalOverlay = $('modalOverlay');
   const modalDateEl = $('modalDate');
   const modalTextarea = $('modalTextarea');
@@ -39,7 +48,7 @@
   const exportBtn = $('exportBtn');
   const importBtn = $('importBtn');
 
-  // Views
+  // Views & Controls
   const calendarView = $('calendarView');
   const fiveYearView = $('fiveYearView');
   const fiveYearBtn = $('fiveYearBtn');
@@ -47,6 +56,17 @@
   const fiveYrEntries = $('fiveYrEntries');
   const fiveYrPrevDay = $('fiveYrPrevDay');
   const fiveYrNextDay = $('fiveYrNextDay');
+  const fiveYrTodayBtn = $('fiveYrTodayBtn');
+  const fiveYrDatePickerBtn = $('fiveYrDatePickerBtn');
+  const datePickerPopup = $('datePickerPopup');
+  const datePickerMonth = $('datePickerMonth');
+  const datePickerDay = $('datePickerDay');
+  const datePickerApply = $('datePickerApply');
+
+  // Multi-Year Controls
+  const presetChips = $('presetChips');
+  const startYearSelect = $('startYearSelect');
+  const endYearSelect = $('endYearSelect');
 
   // --- Persistence ---
   function loadEntries() {
@@ -90,37 +110,122 @@
     return `${y}년 ${m}월 ${d}일 (${dow})`;
   }
 
-  // --- Month has entries ---
+  // --- Recorded Years Helpers ---
+  function getRecordedYears() {
+    const years = new Set();
+    years.add(today.year);
+    Object.keys(entries).forEach(key => {
+      const parts = key.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        if (!isNaN(y)) years.add(y);
+      }
+    });
+    return Array.from(years).sort((a, b) => a - b);
+  }
+
+  function getYearRangeOptions() {
+    const recorded = getRecordedYears();
+    const minRecorded = Math.min(...recorded, today.year - 10);
+    const maxRecorded = Math.max(...recorded, today.year + 10);
+    const min = Math.min(minRecorded, 2015);
+    const max = Math.max(maxRecorded, 2035);
+
+    const list = [];
+    for (let y = min; y <= max; y++) {
+      list.push(y);
+    }
+    return list;
+  }
+
+  // --- Populate Year Dropdowns ---
+  function updateYearDropdowns() {
+    const yearOptions = getYearRangeOptions();
+
+    // 1. Start / End Year Selects in 5-Year View
+    startYearSelect.innerHTML = '';
+    endYearSelect.innerHTML = '';
+
+    yearOptions.forEach(y => {
+      const opt1 = document.createElement('option');
+      opt1.value = y;
+      opt1.textContent = `${y}년`;
+      if (y === fiveYrStartYear) opt1.selected = true;
+      startYearSelect.appendChild(opt1);
+
+      const opt2 = document.createElement('option');
+      opt2.value = y;
+      opt2.textContent = `${y}년`;
+      if (y === fiveYrEndYear) opt2.selected = true;
+      endYearSelect.appendChild(opt2);
+    });
+
+    // 2. Calendar Year Jump Menu
+    yearDropdownMenu.innerHTML = '';
+    const calMin = Math.min(currentYear - 6, today.year - 8, 2018);
+    const calMax = Math.max(currentYear + 6, today.year + 8, 2032);
+
+    for (let y = calMin; y <= calMax; y++) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'year-dropdown-item' + (y === currentYear ? ' active' : '');
+      if (y === today.year) {
+        item.innerHTML = `<span>${y}년</span><span class="year-badge">올해</span>`;
+      } else {
+        item.textContent = `${y}년`;
+      }
+      item.addEventListener('click', () => {
+        currentYear = y;
+        yearDropdownMenu.classList.add('hidden');
+        renderYearNav();
+        renderMonthTabs();
+        renderWeekdayHeader();
+        renderDiaryGrid();
+        renderHeader();
+      });
+      yearDropdownMenu.appendChild(item);
+    }
+  }
+
+  // --- Month has entries check ---
   function monthHasEntries(year, month) {
     const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
     return Object.keys(entries).some(k => k.startsWith(prefix) && entries[k].trim());
   }
 
-  // --- Render ---
+  // --- Header Render ---
   function renderHeader() {
-    dateRangeEl.textContent = `${START_YEAR}년 ~ ${END_YEAR}년`;
+    if (viewMode === 'calendar') {
+      dateRangeEl.textContent = `${currentYear}년 ${currentMonth + 1}월 달력`;
+    } else {
+      const count = Math.max(0, fiveYrEndYear - fiveYrStartYear + 1);
+      dateRangeEl.textContent = `${fiveYrStartYear}년 ~ ${fiveYrEndYear}년 (${count}개년 기록 보기)`;
+    }
   }
 
+  // --- Calendar Navigation ---
   function renderYearNav() {
-    currentYearEl.textContent = currentYear;
-    prevYearBtn.disabled = currentYear <= START_YEAR;
-    nextYearBtn.disabled = currentYear >= END_YEAR;
+    currentYearEl.textContent = `${currentYear}년`;
+    prevYearBtn.disabled = false;
+    nextYearBtn.disabled = false;
   }
 
   function renderMonthTabs() {
     monthTabsEl.innerHTML = '';
     MONTHS.forEach((label, i) => {
       const btn = document.createElement('button');
+      btn.type = 'button';
       btn.className = 'month-tab' + (i === currentMonth ? ' active' : '');
       btn.innerHTML = label;
       if (monthHasEntries(currentYear, i)) {
-        btn.innerHTML += '<span class="entry-dot"></span>';
+        btn.innerHTML += '<span class="entry-dot" title="작성된 일기 있음"></span>';
       }
       btn.addEventListener('click', () => {
         currentMonth = i;
         renderMonthTabs();
         renderWeekdayHeader();
         renderDiaryGrid();
+        renderHeader();
       });
       monthTabsEl.appendChild(btn);
     });
@@ -139,11 +244,11 @@
     });
   }
 
-  // --- Calendar Grid (with proper weekday alignment) ---
+  // --- Calendar Grid ---
   function renderDiaryGrid() {
     const days = getDaysInMonth(currentYear, currentMonth);
-    const today = getToday();
-    const firstDow = getDayOfWeek(currentYear, currentMonth, 1); // 0=Sun ... 6=Sat
+    const curToday = getToday();
+    const firstDow = getDayOfWeek(currentYear, currentMonth, 1);
     diaryGridEl.innerHTML = '';
 
     // Empty cells before 1st
@@ -158,8 +263,8 @@
       const entry = entries[key] || '';
       const dow = getDayOfWeek(currentYear, currentMonth, d);
       const dayLabel = DAYS_KR[dow];
-      const isToday = currentYear === today.year && currentMonth === today.month && d === today.day;
-      const isFuture = new Date(currentYear, currentMonth, d) > new Date(today.year, today.month, today.day);
+      const isToday = currentYear === curToday.year && currentMonth === curToday.month && d === curToday.day;
+      const isFuture = new Date(currentYear, currentMonth, d) > new Date(curToday.year, curToday.month, curToday.day);
 
       const card = document.createElement('div');
       card.className = 'diary-card';
@@ -167,7 +272,7 @@
       if (isToday) card.classList.add('today');
       if (isFuture) card.classList.add('future');
 
-      card.style.animationDelay = `${(d - 1) * 15}ms`;
+      card.style.animationDelay = `${(d - 1) * 12}ms`;
 
       let dayClass = 'card-day';
       if (dow === 0) dayClass += ' sunday';
@@ -196,7 +301,7 @@
   }
 
   // ===================================
-  // ===== 5-Year View =====
+  // ===== Multi-Year (5-Year) View =====
   // ===================================
 
   function switchView(mode) {
@@ -206,6 +311,9 @@
       fiveYearView.classList.add('hidden');
       fiveYearBtn.classList.remove('active');
       fiveYearBtn.querySelector('span').textContent = '5년간 일기';
+      renderHeader();
+      renderMonthTabs();
+      renderDiaryGrid();
     } else {
       calendarView.classList.add('hidden');
       fiveYearView.classList.remove('hidden');
@@ -215,58 +323,136 @@
     }
   }
 
+  // Preset Selector Logic
+  function applyPreset(preset) {
+    currentPreset = preset;
+    const curToday = getToday();
+
+    if (preset === '3') {
+      fiveYrEndYear = curToday.year;
+      fiveYrStartYear = curToday.year - 2;
+    } else if (preset === '5') {
+      fiveYrEndYear = curToday.year;
+      fiveYrStartYear = curToday.year - 4;
+    } else if (preset === '10') {
+      fiveYrEndYear = curToday.year;
+      fiveYrStartYear = curToday.year - 9;
+    } else if (preset === 'all') {
+      const rec = getRecordedYears();
+      fiveYrStartYear = Math.min(...rec, curToday.year - 4);
+      fiveYrEndYear = Math.max(...rec, curToday.year);
+    }
+
+    updatePresetChipsUI();
+    updateYearDropdowns();
+    renderFiveYearView();
+  }
+
+  function updatePresetChipsUI() {
+    presetChips.querySelectorAll('.preset-chip').forEach(btn => {
+      if (btn.dataset.preset === currentPreset) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  function setCustomYearRange(start, end) {
+    if (start > end) {
+      // Swap if user selected start > end
+      const temp = start;
+      start = end;
+      end = temp;
+    }
+    fiveYrStartYear = start;
+    fiveYrEndYear = end;
+    currentPreset = 'custom';
+    updatePresetChipsUI();
+    updateYearDropdowns();
+    renderFiveYearView();
+  }
+
   function renderFiveYearView() {
-    // Clamp day to valid range for current month
-    const maxDay = Math.min(
-      getDaysInMonth(START_YEAR, fiveYrMonth),
-      getDaysInMonth(END_YEAR, fiveYrMonth)
+    // Validate day of month for current fiveYrMonth
+    const maxDaysAcrossYears = Math.max(
+      getDaysInMonth(fiveYrStartYear, fiveYrMonth),
+      getDaysInMonth(fiveYrEndYear, fiveYrMonth),
+      getDaysInMonth(2024, fiveYrMonth) // leap year check
     );
-    if (fiveYrDay > maxDay) fiveYrDay = maxDay;
+    if (fiveYrDay > maxDaysAcrossYears) {
+      fiveYrDay = maxDaysAcrossYears;
+    }
 
     fiveYrDateTitle.textContent = `${fiveYrMonth + 1}월 ${fiveYrDay}일 일기`;
+    renderHeader();
     fiveYrEntries.innerHTML = '';
 
-    const today = getToday();
+    const curToday = getToday();
+    let hasAnyCard = false;
 
-    for (let year = START_YEAR; year <= END_YEAR; year++) {
+    for (let year = fiveYrStartYear; year <= fiveYrEndYear; year++) {
       const daysInThisMonth = getDaysInMonth(year, fiveYrMonth);
-      // If this day doesn't exist in this year's month (e.g., Feb 29 in non-leap), skip
-      if (fiveYrDay > daysInThisMonth) continue;
+      
+      // If this day doesn't exist in this year's month (e.g., Feb 29 in non-leap year)
+      if (fiveYrDay > daysInThisMonth) {
+        const card = document.createElement('div');
+        card.className = 'fiveyr-card fiveyr-card-disabled';
+        card.innerHTML = `
+          <div class="fiveyr-card-header">
+            <div class="fiveyr-year-label">${year}년</div>
+            <div class="fiveyr-dow">${fiveYrMonth + 1}월 ${fiveYrDay}일 (존재하지 않는 날짜)</div>
+          </div>
+          <div class="fiveyr-empty">윤년이 아니므로 해당 날짜가 없습니다.</div>
+        `;
+        fiveYrEntries.appendChild(card);
+        hasAnyCard = true;
+        continue;
+      }
 
+      hasAnyCard = true;
       const key = getEntryKey(year, fiveYrMonth, fiveYrDay);
       const entry = entries[key] || '';
       const dow = getDayOfWeek(year, fiveYrMonth, fiveYrDay);
       const dayLabel = DAYS_KR[dow];
-      const isToday = year === today.year && fiveYrMonth === today.month && fiveYrDay === today.day;
-      const isFuture = new Date(year, fiveYrMonth, fiveYrDay) > new Date(today.year, today.month, today.day);
+      const isToday = year === curToday.year && fiveYrMonth === curToday.month && fiveYrDay === curToday.day;
+      const isFuture = new Date(year, fiveYrMonth, fiveYrDay) > new Date(curToday.year, curToday.month, curToday.day);
 
       const card = document.createElement('div');
       card.className = 'fiveyr-card';
       if (entry.trim()) card.classList.add('has-entry');
       if (isToday) card.classList.add('is-today');
       if (isFuture) card.classList.add('is-future');
-      card.style.animationDelay = `${(year - START_YEAR) * 60}ms`;
+      card.style.animationDelay = `${(year - fiveYrStartYear) * 35}ms`;
 
       card.innerHTML = `
-        <div class="fiveyr-year-label">${year}년</div>
-        <div class="fiveyr-dow">${fiveYrMonth + 1}월 ${fiveYrDay}일 ${dayLabel}요일</div>
+        <div class="fiveyr-card-header">
+          <div class="fiveyr-year-label">${year}년</div>
+          <div class="fiveyr-dow">${fiveYrMonth + 1}월 ${fiveYrDay}일 (${dayLabel}) ${isToday ? '<span class="today-badge">오늘</span>' : ''}</div>
+        </div>
         ${entry.trim()
           ? `<div class="fiveyr-preview">${escapeHtml(entry)}</div>`
-          : `<div class="fiveyr-empty">아직 작성된 일기가 없습니다</div>`
+          : `<div class="fiveyr-empty">✏️ 이 날의 이야기를 적어보세요</div>`
         }
       `;
 
       card.addEventListener('click', () => openModal(key));
       fiveYrEntries.appendChild(card);
     }
+
+    if (!hasAnyCard) {
+      fiveYrEntries.innerHTML = '<div class="no-entries-notice">선택된 연도 범위가 없습니다. 연도를 다시 선택해주세요.</div>';
+    }
   }
 
   function fiveYrNavigate(delta) {
-    // Navigate by day
-    const maxDay = getDaysInMonth(START_YEAR, fiveYrMonth); // use a reference year
+    // Navigate by day across months
+    const refYear = 2024; // leap year reference
+    const currentMaxDays = getDaysInMonth(refYear, fiveYrMonth);
+
     fiveYrDay += delta;
 
-    if (fiveYrDay > maxDay) {
+    if (fiveYrDay > currentMaxDays) {
       fiveYrMonth++;
       if (fiveYrMonth > 11) {
         fiveYrMonth = 0;
@@ -277,13 +463,57 @@
       if (fiveYrMonth < 0) {
         fiveYrMonth = 11;
       }
-      fiveYrDay = getDaysInMonth(START_YEAR, fiveYrMonth);
+      fiveYrDay = getDaysInMonth(refYear, fiveYrMonth);
     }
 
     renderFiveYearView();
   }
 
-  // --- Modal ---
+  // --- Date Picker Popup Logic ---
+  function setupDatePickerPopup() {
+    // Populate month options
+    datePickerMonth.innerHTML = '';
+    MONTHS.forEach((m, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = m;
+      datePickerMonth.appendChild(opt);
+    });
+
+    function updateDayOptions() {
+      const selectedM = parseInt(datePickerMonth.value, 10);
+      const maxDays = getDaysInMonth(2024, selectedM);
+      const curSelectedD = parseInt(datePickerDay.value, 10) || fiveYrDay;
+      
+      datePickerDay.innerHTML = '';
+      for (let d = 1; d <= maxDays; d++) {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = `${d}일`;
+        if (d === Math.min(curSelectedD, maxDays)) opt.selected = true;
+        datePickerDay.appendChild(opt);
+      }
+    }
+
+    datePickerMonth.addEventListener('change', updateDayOptions);
+
+    fiveYrDatePickerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      datePickerMonth.value = fiveYrMonth;
+      updateDayOptions();
+      datePickerDay.value = fiveYrDay;
+      datePickerPopup.classList.toggle('hidden');
+    });
+
+    datePickerApply.addEventListener('click', () => {
+      fiveYrMonth = parseInt(datePickerMonth.value, 10);
+      fiveYrDay = parseInt(datePickerDay.value, 10);
+      datePickerPopup.classList.add('hidden');
+      renderFiveYearView();
+    });
+  }
+
+  // --- Modal (Edit Diary) ---
   function openModal(key) {
     currentEditKey = key;
     modalDateEl.textContent = formatDateKR(key);
@@ -293,7 +523,7 @@
     modalOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
 
-    setTimeout(() => modalTextarea.focus(), 300);
+    setTimeout(() => modalTextarea.focus(), 250);
   }
 
   function closeModal() {
@@ -306,6 +536,7 @@
           delete entries[currentEditKey];
         }
         saveEntries();
+        updateYearDropdowns();
         if (viewMode === 'calendar') {
           renderMonthTabs();
           renderDiaryGrid();
@@ -328,6 +559,7 @@
       delete entries[currentEditKey];
     }
     saveEntries();
+    updateYearDropdowns();
 
     if (viewMode === 'calendar') {
       renderMonthTabs();
@@ -351,6 +583,7 @@
     if (confirm('이 날의 일기를 삭제하시겠습니까?')) {
       delete entries[currentEditKey];
       saveEntries();
+      updateYearDropdowns();
       modalTextarea.value = '';
       updateCharCount();
       if (viewMode === 'calendar') {
@@ -378,9 +611,9 @@
     const dataStr = JSON.stringify(entries, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const filename = `diary_backup_${dateStr}.json`;
+    const curToday = getToday();
+    const dateStr = `${curToday.year}-${String(curToday.month + 1).padStart(2, '0')}-${String(curToday.day).padStart(2, '0')}`;
+    const filename = `5y_diary_backup_${dateStr}.json`;
 
     const a = document.createElement('a');
     a.href = url;
@@ -407,14 +640,14 @@
         try {
           const imported = JSON.parse(event.target.result);
           
-          // Basic validation
           if (typeof imported !== 'object' || Array.isArray(imported)) {
             throw new Error('올바른 백업 파일 형식이 아닙니다.');
           }
 
-          if (confirm(`일기를 불러오시겠습니까? 현재 데이터와 합쳐집니다.`)) {
+          if (confirm('일기를 불러오시겠습니까? 기존 데이터와 합쳐집니다.')) {
             entries = { ...entries, ...imported };
             saveEntries();
+            updateYearDropdowns();
             
             if (viewMode === 'calendar') {
               renderMonthTabs();
@@ -443,87 +676,159 @@
     setTimeout(() => toastEl.classList.remove('visible'), 2500);
   }
 
-  // --- Event Listeners ---
-  prevYearBtn.addEventListener('click', () => {
-    if (currentYear > START_YEAR) {
+  // --- Event Listeners Setup ---
+  function setupEventListeners() {
+    // Calendar View Year Navigation
+    prevYearBtn.addEventListener('click', () => {
       currentYear--;
       renderYearNav();
       renderMonthTabs();
       renderWeekdayHeader();
       renderDiaryGrid();
-    }
-  });
+      renderHeader();
+      updateYearDropdowns();
+    });
 
-  nextYearBtn.addEventListener('click', () => {
-    if (currentYear < END_YEAR) {
+    nextYearBtn.addEventListener('click', () => {
       currentYear++;
       renderYearNav();
       renderMonthTabs();
       renderWeekdayHeader();
       renderDiaryGrid();
-    }
-  });
+      renderHeader();
+      updateYearDropdowns();
+    });
 
-  // 5-Year View toggle
-  fiveYearBtn.addEventListener('click', () => {
-    if (viewMode === 'calendar') {
-      // Set 5yr view to today's month/day
-      const today = getToday();
-      fiveYrMonth = today.month;
-      fiveYrDay = today.day;
-      switchView('fiveYear');
-    } else {
-      switchView('calendar');
-    }
-  });
+    // Year Dropdown Menu toggle
+    yearSelectBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      yearDropdownMenu.classList.toggle('hidden');
+    });
 
-  fiveYrPrevDay.addEventListener('click', () => fiveYrNavigate(-1));
-  fiveYrNextDay.addEventListener('click', () => fiveYrNavigate(1));
+    // Calendar "Today" button
+    calTodayBtn.addEventListener('click', () => {
+      const curToday = getToday();
+      currentYear = curToday.year;
+      currentMonth = curToday.month;
+      renderYearNav();
+      renderMonthTabs();
+      renderWeekdayHeader();
+      renderDiaryGrid();
+      renderHeader();
+      showToast('오늘 달력으로 이동했습니다 📅');
+    });
 
-  modalSaveBtn.addEventListener('click', saveCurrentEntry);
-  modalDeleteBtn.addEventListener('click', deleteCurrentEntry);
-  modalCloseBtn.addEventListener('click', closeModal);
-
-  exportBtn.addEventListener('click', exportDiaryEntries);
-  importBtn.addEventListener('click', importDiaryEntries);
-
-  modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) closeModal();
-  });
-
-  modalTextarea.addEventListener('input', updateCharCount);
-
-  // Keyboard shortcuts
-  document.addEventListener('keydown', (e) => {
-    if (modalOverlay.classList.contains('active')) {
-      if (e.key === 'Escape') closeModal();
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        saveCurrentEntry();
+    // 5-Year View toggle button
+    fiveYearBtn.addEventListener('click', () => {
+      if (viewMode === 'calendar') {
+        const curToday = getToday();
+        fiveYrMonth = curToday.month;
+        fiveYrDay = curToday.day;
+        switchView('fiveYear');
+      } else {
+        switchView('calendar');
       }
-    }
-    // Navigate 5-year view with arrow keys
-    if (viewMode === 'fiveYear' && !modalOverlay.classList.contains('active')) {
-      if (e.key === 'ArrowLeft') fiveYrNavigate(-1);
-      if (e.key === 'ArrowRight') fiveYrNavigate(1);
-    }
-  });
+    });
 
-  // --- Init ---
+    // 5-Year View Day Navigation
+    fiveYrPrevDay.addEventListener('click', () => fiveYrNavigate(-1));
+    fiveYrNextDay.addEventListener('click', () => fiveYrNavigate(1));
+
+    // 5-Year View "Today" button
+    fiveYrTodayBtn.addEventListener('click', () => {
+      const curToday = getToday();
+      fiveYrMonth = curToday.month;
+      fiveYrDay = curToday.day;
+      renderFiveYearView();
+      showToast('오늘 날짜로 이동했습니다 📅');
+    });
+
+    // Preset Chips
+    presetChips.addEventListener('click', (e) => {
+      const target = e.target.closest('.preset-chip');
+      if (!target) return;
+      applyPreset(target.dataset.preset);
+    });
+
+    // Custom Year Range Selects
+    startYearSelect.addEventListener('change', () => {
+      const s = parseInt(startYearSelect.value, 10);
+      const e = parseInt(endYearSelect.value, 10);
+      setCustomYearRange(s, e);
+    });
+
+    endYearSelect.addEventListener('change', () => {
+      const s = parseInt(startYearSelect.value, 10);
+      const e = parseInt(endYearSelect.value, 10);
+      setCustomYearRange(s, e);
+    });
+
+    // Modal Events
+    modalSaveBtn.addEventListener('click', saveCurrentEntry);
+    modalDeleteBtn.addEventListener('click', deleteCurrentEntry);
+    modalCloseBtn.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+    modalTextarea.addEventListener('input', updateCharCount);
+
+    // Header Actions
+    exportBtn.addEventListener('click', exportDiaryEntries);
+    importBtn.addEventListener('click', importDiaryEntries);
+
+    // Global click for closing dropdowns
+    document.addEventListener('click', (e) => {
+      if (!yearDropdownMenu.classList.contains('hidden') && !yearSelectBtn.contains(e.target) && !yearDropdownMenu.contains(e.target)) {
+        yearDropdownMenu.classList.add('hidden');
+      }
+      if (!datePickerPopup.classList.contains('hidden') && !fiveYrDatePickerBtn.contains(e.target) && !datePickerPopup.contains(e.target)) {
+        datePickerPopup.classList.add('hidden');
+      }
+    });
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (modalOverlay.classList.contains('active')) {
+        if (e.key === 'Escape') closeModal();
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          saveCurrentEntry();
+        }
+      } else {
+        if (e.key === 'Escape') {
+          yearDropdownMenu.classList.add('hidden');
+          datePickerPopup.classList.add('hidden');
+        }
+        // Navigate 5-year view with arrow keys
+        if (viewMode === 'fiveYear') {
+          if (e.key === 'ArrowLeft') fiveYrNavigate(-1);
+          if (e.key === 'ArrowRight') fiveYrNavigate(1);
+        }
+      }
+    });
+
+    setupDatePickerPopup();
+  }
+
+  // --- Initialization ---
   function init() {
     loadEntries();
 
-    const today = getToday();
-    if (today.year >= START_YEAR && today.year <= END_YEAR) {
-      currentYear = today.year;
-      currentMonth = today.month;
-    }
+    const curToday = getToday();
+    currentYear = curToday.year;
+    currentMonth = curToday.month;
+    fiveYrMonth = curToday.month;
+    fiveYrDay = curToday.day;
+    fiveYrStartYear = curToday.year - 4;
+    fiveYrEndYear = curToday.year;
 
+    updateYearDropdowns();
     renderHeader();
     renderYearNav();
     renderMonthTabs();
     renderWeekdayHeader();
     renderDiaryGrid();
+    setupEventListeners();
 
     // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
