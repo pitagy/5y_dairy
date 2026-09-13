@@ -30,5 +30,4 @@ echo ========================================================
 echo  Starting 5-Year Diary at http://localhost:5500
 echo ========================================================
 
-start "" "http://localhost:5500"
-call npx http-server . -p 5500 -c-1
+call npx http-server . -a 127.0.0.1 -p 5500 -c-1 -o
