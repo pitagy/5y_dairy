@@ -55,7 +55,43 @@ if "%TARGET_DIR:~-1%"=="\" set "TARGET_DIR=%TARGET_DIR:~0,-1%"
 
 cd /d "%TARGET_DIR%"
 
-:: Install dependencies if missing
+:: Check if Node.js is installed
+where node >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ========================================================
+    echo  Node.js is not installed on this PC.
+    echo  Automatically installing Node.js (LTS)...
+    echo  Please click 'Yes' if Windows asks for permission.
+    echo ========================================================
+    echo.
+    
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "Write-Host 'Downloading Node.js installer...'; " ^
+        "$url = 'https://nodejs.org/dist/v20.18.0/node-v20.18.0-x64.msi'; " ^
+        "$msi = Join-Path $env:TEMP 'nodejs_installer.msi'; " ^
+        "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; " ^
+        "(New-Object System.Net.WebClient).DownloadFile($url, $msi); " ^
+        "Write-Host 'Installing Node.js... Please wait...'; " ^
+        "$p = Start-Process msiexec.exe -ArgumentList '/i', $msi, '/passive' -PassThru; " ^
+        "$p.WaitForExit(); " ^
+        "Remove-Item $msi -ErrorAction SilentlyContinue"
+
+    set "PATH=%ProgramFiles%\nodejs;%APPDATA%\npm;%PATH%"
+    
+    where node >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo [NOTICE] Node.js installation finished.
+        echo Please restart this batch file to continue.
+        echo.
+        pause
+        exit /b 0
+    )
+    echo Node.js installation completed successfully!
+    echo.
+)
+
+:: Install packages if missing
 if not exist "node_modules\" (
     echo ========================================================
     echo  Installing required packages for 5-Year Diary...
